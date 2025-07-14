@@ -1,0 +1,369 @@
+ Authentication Handler for SPX Predictor
+class AuthHandler {
+    constructor() {
+        this.initializeAuth();
+        this.setupEventListeners();
+    }
+
+    initializeAuth() {
+         Check if Firebase auth is available
+        if (typeof auth === 'undefined') {
+            console.log('Firebase auth not available - running in demo mode');
+            return;
+        }
+
+         Check if user is already logged in
+        auth.onAuthStateChanged((user) = {
+            if (user) {
+                 User is signed in
+                this.handleAuthSuccess(user);
+            } else {
+                 User is signed out
+                this.handleAuthSignOut();
+            }
+        });
+    }
+
+    setupEventListeners() {
+         Signup form
+        const signupForm = document.getElementById('signupForm');
+        if (signupForm) {
+            signupForm.addEventListener('submit', (e) = this.handleSignup(e));
+        }
+
+         Login form
+        const loginForm = document.getElementById('loginForm');
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) = this.handleLogin(e));
+        }
+
+         Google signup
+        const googleSignup = document.getElementById('googleSignup');
+        if (googleSignup) {
+            googleSignup.addEventListener('click', () = this.handleGoogleAuth());
+        }
+
+         Google login
+        const googleLogin = document.getElementById('googleLogin');
+        if (googleLogin) {
+            googleLogin.addEventListener('click', () = this.handleGoogleAuth());
+        }
+    }
+
+    async handleSignup(e) {
+        e.preventDefault();
+        
+        const fullName = document.getElementById('fullName').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const tradingExperience = document.getElementById('tradingExperience').value;
+        const terms = document.getElementById('terms').checked;
+
+         Validation
+        if (!this.validateSignupForm(fullName, email, password, confirmPassword, tradingExperience, terms)) {
+            return;
+        }
+
+        this.showLoading();
+
+        try {
+             Create user account
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            const user = userCredential.user;
+
+             Update user profile
+            await user.updateProfile({
+                displayName fullName
+            });
+
+             Save additional user data to Firestore
+            await db.collection('users').doc(user.uid).set({
+                fullName fullName,
+                email email,
+                tradingExperience tradingExperience,
+                createdAt firebase.firestore.FieldValue.serverTimestamp(),
+                lastLogin firebase.firestore.FieldValue.serverTimestamp(),
+                preferences {
+                    theme 'light',
+                    notifications true,
+                    defaultVix 14.2,
+                    defaultVolatility 12.5
+                }
+            });
+
+            this.showSuccess('Account created successfully! Redirecting...');
+            setTimeout(() = {
+                window.location.href = 'dashboard.html';
+            }, 2000);
+
+        } catch (error) {
+            this.showError(this.getErrorMessage(error));
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async handleLogin(e) {
+        e.preventDefault();
+        
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        if (!email  !password) {
+            this.showError('Please fill in all fields');
+            return;
+        }
+
+        this.showLoading();
+
+        try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            const user = userCredential.user;
+
+             Update last login
+            await db.collection('users').doc(user.uid).update({
+                lastLogin firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            this.showSuccess('Login successful! Redirecting...');
+            setTimeout(() = {
+                window.location.href = 'dashboard.html';
+            }, 1500);
+
+        } catch (error) {
+            this.showError(this.getErrorMessage(error));
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    async handleGoogleAuth() {
+        this.showLoading();
+
+        try {
+            const result = await auth.signInWithPopup(googleProvider);
+            const user = result.user;
+
+             Check if this is a new user
+            const userDoc = await db.collection('users').doc(user.uid).get();
+            
+            if (!userDoc.exists) {
+                 New user - save their data
+                await db.collection('users').doc(user.uid).set({
+                    fullName user.displayName,
+                    email user.email,
+                    tradingExperience 'intermediate',  Default
+                    createdAt firebase.firestore.FieldValue.serverTimestamp(),
+                    lastLogin firebase.firestore.FieldValue.serverTimestamp(),
+                    preferences {
+                        theme 'light',
+                        notifications true,
+                        defaultVix 14.2,
+                        defaultVolatility 12.5
+                    }
+                });
+            } else {
+                 Existing user - update last login
+                await db.collection('users').doc(user.uid).update({
+                    lastLogin firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+
+            this.showSuccess('Authentication successful! Redirecting...');
+            setTimeout(() = {
+                window.location.href = 'dashboard.html';
+            }, 1500);
+
+        } catch (error) {
+            this.showError(this.getErrorMessage(error));
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    validateSignupForm(fullName, email, password, confirmPassword, tradingExperience, terms) {
+        if (!fullName  !email  !password  !confirmPassword  !tradingExperience) {
+            this.showError('Please fill in all fields');
+            return false;
+        }
+
+        if (password !== confirmPassword) {
+            this.showError('Passwords do not match');
+            return false;
+        }
+
+        if (password.length  6) {
+            this.showError('Password must be at least 6 characters');
+            return false;
+        }
+
+        if (!terms) {
+            this.showError('Please accept the terms and conditions');
+            return false;
+        }
+
+        return true;
+    }
+
+    getErrorMessage(error) {
+        switch (error.code) {
+            case 'authemail-already-in-use'
+                return 'This email is already registered. Please use a different email or login.';
+            case 'authinvalid-email'
+                return 'Please enter a valid email address.';
+            case 'authweak-password'
+                return 'Password is too weak. Please use at least 6 characters.';
+            case 'authuser-not-found'
+                return 'No account found with this email address.';
+            case 'authwrong-password'
+                return 'Incorrect password. Please try again.';
+            case 'authtoo-many-requests'
+                return 'Too many failed attempts. Please try again later.';
+            default
+                return error.message  'An error occurred. Please try again.';
+        }
+    }
+
+    showLoading() {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+        }
+    }
+
+    hideLoading() {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+
+    showError(message) {
+        this.removeExistingMessages();
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.textContent = message;
+        
+        const form = document.querySelector('.auth-form');
+        if (form) {
+            form.insertBefore(errorDiv, form.firstChild);
+        }
+    }
+
+    showSuccess(message) {
+        this.removeExistingMessages();
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.textContent = message;
+        
+        const form = document.querySelector('.auth-form');
+        if (form) {
+            form.insertBefore(successDiv, form.firstChild);
+        }
+    }
+
+    removeExistingMessages() {
+        const existingMessages = document.querySelectorAll('.error-message, .success-message');
+        existingMessages.forEach(msg = msg.remove());
+    }
+
+    handleAuthSuccess(user) {
+         Redirect to dashboard if on auth pages
+        if (window.location.pathname.includes('login.html')  window.location.pathname.includes('signup.html')) {
+            window.location.href = 'dashboard.html';
+        }
+    }
+
+    handleAuthSignOut() {
+         Redirect to login if on protected pages (but allow demo access to dashboard)
+        if (window.location.pathname.includes('dashboard.html')) {
+             Allow demo access, don't redirect
+            return;
+        }
+    }
+
+    async logout() {
+        try {
+            if (typeof auth !== 'undefined') {
+                await auth.signOut();
+            }
+            window.location.href = 'index.html';
+        } catch (error) {
+            console.error('Logout error', error);
+            window.location.href = 'index.html';
+        }
+    }
+}
+
+ User data management
+class UserDataManager {
+    static async getUserData(uid) {
+        try {
+            if (typeof db === 'undefined') return null;
+            const doc = await db.collection('users').doc(uid).get();
+            return doc.exists  doc.data()  null;
+        } catch (error) {
+            console.error('Error getting user data', error);
+            return null;
+        }
+    }
+
+    static async updateUserPreferences(uid, preferences) {
+        try {
+            if (typeof db === 'undefined') return false;
+            await db.collection('users').doc(uid).update({
+                preferences preferences,
+                updatedAt firebase.firestore.FieldValue.serverTimestamp()
+            });
+            return true;
+        } catch (error) {
+            console.error('Error updating preferences', error);
+            return false;
+        }
+    }
+
+    static async savePrediction(uid, predictionData) {
+        try {
+            if (typeof db === 'undefined') return false;
+            await db.collection('predictions').add({
+                userId uid,
+                ...predictionData,
+                timestamp firebase.firestore.FieldValue.serverTimestamp()
+            });
+            return true;
+        } catch (error) {
+            console.error('Error saving prediction', error);
+            return false;
+        }
+    }
+
+    static async getUserPredictions(uid, limit = 10) {
+        try {
+            if (typeof db === 'undefined') return [];
+            const snapshot = await db.collection('predictions')
+                .where('userId', '==', uid)
+                .orderBy('timestamp', 'desc')
+                .limit(limit)
+                .get();
+            
+            return snapshot.docs.map(doc = ({
+                id doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Error getting predictions', error);
+            return [];
+        }
+    }
+}
+
+ Initialize authentication when DOM is loaded
+document.addEventListener('DOMContentLoaded', () = {
+    if (typeof firebase !== 'undefined') {
+        window.authHandler = new AuthHandler();
+        window.UserDataManager = UserDataManager;
+    } else {
+        console.log('Firebase not loaded - running in demo mode');
+    }
+});
