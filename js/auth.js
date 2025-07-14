@@ -59,7 +59,7 @@ async function handleLogin(e) {
     
     try {
         loadingOverlay.style.display = 'flex';
-        
+        console.log("user auth started - demo set up");
         // Demo login - accepts any valid email/password combination
         setTimeout(() => {
             loadingOverlay.style.display = 'none';
@@ -76,7 +76,7 @@ async function handleLogin(e) {
         }, 1500);
         
         // Uncomment below for real Firebase authentication:
-        
+        console.log("user auth started");
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
         console.log('User signed in:', userCredential.user);
         sessionStorage.setItem('spx_logged_in', 'true');
