@@ -846,6 +846,17 @@
         document.addEventListener('DOMContentLoaded', function() {
             generatePrediction();
             
+            // Add click event listener to the trades stat card
+            const tradesCard = document.querySelector('.clickable-stat');
+            if (tradesCard) {
+                tradesCard.addEventListener('click', function() {
+                    console.log('Trades card clicked');
+                    showTradesModal();
+                });
+            } else {
+                console.error('Trades card not found');
+            }
+            
             // Update live price every 30 seconds during "market hours"
             setInterval(updateLivePrice, 30000);
         });
@@ -894,6 +905,11 @@
                 day: 'numeric'
             });
         }
+
+        // Make functions globally available
+        window.showTradesModal = showTradesModal;
+        window.closeTradesModal = closeTradesModal;
+        window.logout = logout;
 
         // Close modal when clicking outside of it
         window.onclick = function(event) {
